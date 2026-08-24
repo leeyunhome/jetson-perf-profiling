@@ -72,3 +72,11 @@
 | IPC | 0.91 | 3.37 | 1.34 (커널 포함) |
 | branch-miss | 5.11% | 0.01% | 0.00% (커널 포함) |
 | syscall 패턴 (ftrace) | 짧아서 전체 캡처됨 | 초반에만 집중, 이후 조용 | 버퍼 오버플로로 끝부분만 남음 |
+
+### 9. 네 번째 워크로드: 멀티스레드 (`multithread.c`, 4 threads x fib(38))
+- 6코어 장비에서 스레드 4개 동시 실행: `real 0.386s`, `user 1.520s` → 병렬 가속 약 3.94배 (이상적 4배에 근접)
+- `sudo perf stat`: **`context-switches: 45`, `cpu-migrations: 2`** — 이번 실습 전체에서 처음으로 0이 아닌 값 확인. `3.935 CPUs utilized`로 실제 병렬 실행 확인.
+- `IPC 3.37`, `branch-miss 0.01%` — 단일 스레드 `fib(42)`와 거의 동일. 병렬화가 코어별 실행 효율은 유지하면서 처리량만 늘렸다는 근거.
+- ftrace `sched_migrate_task`로 실제 마이그레이션 이벤트 확인. pid 필터링 없이 시스템 전체를 추적하니 상당수(rcu_preempt, kworker, sshd, python, NetworkManager, containerd 등)가 우리 프로세스와 무관한 배경 활동이었고, 진짜 `multithread` 자신의 마이그레이션은 3건 (`perf stat`의 `cpu-migrations: 2`와 대략 일치, 서로 다른 실행이라 완전 동일하지는 않음)
+  - 교훈: 타겟 pid로 필터링하지 않고 시스템 전체를 트레이싱하면 노이즈에 신호가 묻힌다.
+- 부가 관찰: CPU 부하가 오르자 `sugov:0`(schedutil 주파수 governor 커널 스레드)와 `multithread` 스레드가 매우 빈번하게 교차 스위칭됨 — 부하 증가에 따른 주파수 스케일링 개입이 스케줄러 레벨에서 관찰됨
