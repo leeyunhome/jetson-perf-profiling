@@ -1,6 +1,21 @@
 # jetson-perf-profiling
 
-Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 성능 프로파일링을 실습한 기록. 가상머신(VirtualBox)에서는 PMU 하드웨어 이벤트가 가상화 제약으로 막혀있었던 것을 계기로, 실물 장비에서 처음부터 다시 재현하며 벤더 커스텀 커널(NVIDIA L4T) 환경에서 부딪히는 실전 이슈들을 기록했다.
+Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 CPU 프로파일링을 실습한 기록. 가상머신(VirtualBox)에서는 PMU 하드웨어 이벤트가 가상화 제약으로 막혀 있던 것을 계기로, 실물 장비에서 처음부터 다시 재현하며 벤더 커스텀 커널(NVIDIA L4T) 환경에서 부딪히는 실전 이슈들을 기록했다.
+
+## 이 저장소의 범위 (먼저 읽어주세요)
+
+이 저장소는 **`perf`/`ftrace` 기반 CPU 프로파일링 실습 한 건**으로 범위가 한정되어 있다. 짧은 단일 세션의 학습 기록이며, 임베디드 리눅스 실무 역량 전반을 대표하지 않는다.
+
+- **여기서 다루는 것**: `perf stat`/`perf record`, 하드웨어 PMU 카운터 해석(IPC·분기 예측), Flame Graph 생성, ftrace tracepoint 이벤트 트레이싱, 워크로드 유형별 프로파일 비교
+- **여기서 다루지 않는 것**: DMA-BUF / V4L2 zero-copy 파이프라인, Device Tree, out-of-tree 벤더 드라이버 통합, 부팅 시퀀스 최적화 — 이들은 이 저장소가 아니라 **세연테크에서의 실무 경험**에서 다룬 영역이다.
+
+즉 이 저장소는 "프로파일링 도구를 실물 장비에서 직접 붙잡고 씨름한 기록"으로 읽어주시면 된다.
+
+## 실습 세션 정보
+
+- **일시**: 2026-08-24 하루, 17:27 ~ 22:44 KST (**약 5시간 20분**, 단일 세션)
+- 커밋 22개가 모두 이 시간 범위 안에 있다. 여러 날에 걸친 장기 프로젝트가 아니다.
+- 초기 커밋의 author는 `manager <mszeta@naver.com>` — **Jetson 기기의 로컬 계정(`manager@localhost`)에서 직접 커밋**했기 때문이다. 이후 정리 작업은 작업 PC에서 `leeyunhome`으로 커밋했다.
 
 ## 먼저 볼 것
 
@@ -12,41 +27,75 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 성능 프로�
 |---|---|
 | [`docs/index.html`](docs/index.html) | 완성된 결과를 정리한 포트폴리오 페이지 (GitHub Pages로 배포됨) |
 | [`docs/log.md`](docs/log.md) | 진행 순서대로 남긴 원본 작업 로그 |
+| [`docs/반복측정_결과.md`](docs/반복측정_결과.md) | 각 워크로드 5회 반복 측정 결과 (평균·표준편차·range) |
 | [`docs/시행착오_기록.md`](docs/시행착오_기록.md) | 진행 중 실제로 막혔던 문제와 해결 과정 |
 | [`docs/쉽게_설명한_성능분석_실습.md`](docs/쉽게_설명한_성능분석_실습.md) | 전문용어 없이 비유로 풀어쓴 설명 |
-| [`src/`](src/) | 실습에 쓴 예제 프로그램 3종 (hot.c=연산 지속형 fib, io_bound.c=I/O 지속형, multithread.c=병렬) |
+| [`src/`](src/) | 예제 프로그램 3종 + Makefile (`hot.c`=연산 지속형, `io_bound.c`=I/O 지속형, `multithread.c`=병렬) |
+| [`scripts/bench.sh`](scripts/bench.sh) | 반복 측정 스크립트 (위 반복측정 결과를 생성) |
 | [`docs/flame_fib42.svg`](docs/flame_fib42.svg) | perf record + FlameGraph로 생성한 화염 그래프 |
 
-## 환경
+## 측정 환경
 
-- Device: Jetson Orin (Tegra), 6 CPU cores
-- Kernel: 6.8.12-1021-tegra (NVIDIA 커스텀 L4T 빌드)
-- perf: 표준 linux-tools-generic 패키지의 바이너리를 커널 버전 무관하게 직접 실행 (자세한 이유는 시행착오 기록 참고)
-- 코드 포맷: .clang-format 참고 (짧은 함수도 항상 멀티라인으로 펼침)
+아래 수치와 명령어는 **이 환경에서만 그대로 유효하다.** 특히 perf 바이너리 경로는 이 기기에 설치된 패키지 버전에 종속적이다.
+
+| 항목 | 값 |
+|---|---|
+| Device | Jetson Orin (Tegra), 6 CPU cores |
+| Kernel | `6.8.12-1021-tegra` (NVIDIA 커스텀 L4T 빌드) |
+| Userspace | Ubuntu 24.04 (aarch64) |
+| perf | `linux-tools-6.8.0-138-generic` 패키지의 바이너리 (버전 6.8.12) |
+| 코드 포맷 | [`.clang-format`](.clang-format) — 짧은 함수도 항상 멀티라인으로 펼침 |
+
+### perf 경로가 하드코딩이 아니라 변수인 이유
+
+Tegra 커널에는 대응하는 `linux-tools-6.8.12-1021-tegra` 패키지가 **존재하지 않는다.** 그래서 `perf` 래퍼(`/usr/bin/perf`)는 커널 버전을 보고 "패키지를 설치하라"며 실패한다. 우회책으로 **버전이 다른 표준 패키지의 perf 바이너리를 절대경로로 직접 호출**한다 (자세한 경위는 [`docs/시행착오_기록.md`](docs/시행착오_기록.md) 3번 참고).
+
+따라서 이 경로는 **환경마다 다르다.** 아래처럼 먼저 실제 경로를 찾아 변수에 담고 쓴다:
+
+```sh
+# 이 기기에 설치된 perf 바이너리를 찾는다
+ls /usr/lib/linux-tools/*/perf
+
+# 찾은 경로를 변수에 담는다 (이 저장소의 결과는 아래 경로로 측정됨)
+export PERF=/usr/lib/linux-tools/6.8.0-138-generic/perf
+"$PERF" --version   # -> perf version 6.8.12
+```
+
+`sudo`는 alias/함수를 무시하므로 `sudo perf ...`가 아니라 `sudo "$PERF" ...` 형태로 호출해야 한다.
+
+그 외 환경 종속적인 값들:
+
+| 값 | 위치 | 비고 |
+|---|---|---|
+| `/usr/lib/linux-tools/6.8.0-138-generic/perf` | `scripts/bench.sh`의 `PERF` 기본값 | `PERF=... bash scripts/bench.sh`로 덮어쓸 수 있음 |
+| `/tmp/io_bound_test.bin` | `src/io_bound.c`의 `OUT_PATH` | I/O 워크로드의 출력 파일. 실행마다 덮어쓰며 약 128MB 사용 |
+| `/sys/kernel/debug/tracing` | ftrace 실습 전반 | tracefs 마운트 위치. 읽기에도 `sudo` 필요 |
+
+## 재현 방법
+
+```sh
+# 1) perf 확보 (Tegra 커널엔 대응 패키지가 없음 -- 위 설명 참고)
+sudo apt install -y linux-tools-common linux-tools-generic
+export PERF=$(ls /usr/lib/linux-tools/*/perf | head -1)
+
+# 2) 워크로드 빌드
+make -C src            # hot, io_bound, multithread
+make -C src clean      # 정리
+
+# 3) 단발 프로파일링
+sudo "$PERF" stat -- src/hot
+sudo "$PERF" record -g -o /tmp/perf.data -- src/hot
+
+# 4) 반복 측정 (5회 기본, 평균/표준편차/range 출력)
+bash scripts/bench.sh 5
+```
+
+자세한 명령어와 결과는 [`docs/log.md`](docs/log.md)에 순서대로 정리돼 있다.
 
 ## 핵심 발견 요약
 
 1. VM에서는 못 보던 하드웨어 PMU 이벤트(cycles/instructions/branches)가 실물 하드웨어에서는 전부 정상 수집됨
-2. 워크로드 종류(순간형 ls / 연산 지속형 fib / I/O 지속형 / 병렬)에 따라 IPC, 분기미스율, 컨텍스트 스위치 패턴이 완전히 다르게 나타남
-3. perf stat과 ftrace가 서로 다른 걸 셀 수 있다 (예: :u scope 차이) — 도구 하나만 믿으면 안 됨
-4. 벤더 커스텀 커널(Tegra)에서는 perf/ftrace의 표준 기능(패키지, function_graph tracer)이 빠져있을 수 있고, 우회책이 필요함
-
-## 재현 방법
-
-perf 확보 (Tegra 커널엔 표준 패키지가 없음 — 대안 바이너리 사용):
-
-    sudo apt install -y linux-tools-generic
-    PERF=/usr/lib/linux-tools/6.8.0-138-generic/perf
-
-예제 컴파일:
-
-    gcc -O0 -g -o src/hot src/hot.c
-    gcc -O0 -g -o src/io_bound src/io_bound.c
-    gcc -O0 -g -pthread -o src/multithread src/multithread.c
-
-프로파일링:
-
-    sudo $PERF stat -- src/hot
-    sudo $PERF record -g -o /tmp/perf.data -- src/hot
-
-자세한 명령어와 결과는 docs/log.md 에 순서대로 정리돼 있다.
+2. 워크로드 종류(순간형 `ls` / 연산 지속형 `fib` / I/O 지속형 / 병렬)에 따라 IPC, 분기미스율, 컨텍스트 스위치 패턴이 완전히 다르게 나타남
+3. `perf stat`과 `ftrace`가 서로 다른 것을 셀 수 있다 (예: `:u` scope 차이) — 도구 하나만 믿으면 안 됨
+4. 벤더 커스텀 커널(Tegra)에서는 `perf`/`ftrace`의 표준 기능(대응 패키지, `function_graph` tracer)이 빠져 있을 수 있고, 우회책이 필요함
+5. 단발 측정은 캐시 워밍업만으로도 3배까지 흔들린다 — 반복 측정으로 검증해야 한다 ([`docs/반복측정_결과.md`](docs/반복측정_결과.md))
