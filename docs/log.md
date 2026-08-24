@@ -16,3 +16,10 @@
 ### 2. perf 설치 확인
 - `perf --version` → 미설치 확인 (`command not found`)
 - 원인 추정: NVIDIA 커스텀 L4T 커널이라 표준 `linux-tools-$(uname -r)` 패키지가 존재하지 않을 가능성
+
+### 3. perf 바이너리 확보 (핵심 성과)
+- Tegra 커널(`6.8.12-1021-tegra`) 전용 `linux-tools` 패키지는 존재하지 않음 (NVIDIA 벤더 커널이라 Ubuntu 표준 저장소에 미등록)
+- 우회: 표준 `linux-tools-6.8.0-138-generic` 패키지에 포함된 perf 바이너리(버전 6.8.12)를 커널 버전 무관하게 직접 실행 → **정상 동작 확인**
+- `perf stat -- ls /` 결과: **하드웨어 PMU 이벤트(cycles, instructions, branches, branch-misses)가 전부 정상 수집됨**
+  - VM(VirtualBox)에서는 PMU 가상화 미지원으로 소프트웨어 이벤트만 됐던 것과 대조적 — 실물 ARM 하드웨어의 이점을 확인
+- alias 등록: `alias perf=/usr/lib/linux-tools/6.8.0-138-generic/perf`
