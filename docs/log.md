@@ -48,3 +48,12 @@
 
 - `fib`처럼 분기 패턴이 규칙적인 연산 집중형 루프는 분기 예측기가 거의 완벽하게 학습되어 미스율이 0.01% 수준까지 떨어지고, IPC도 3.37까지 올라감 (ARM 슈퍼스칼라 파이프라인이 거의 스톨 없이 가동됨).
 - `ls`는 초단명 프로세스라 동적 링킹/파일시스템 조회의 불규칙한 분기 + 예측기 워밍업 부족으로 미스율이 500배 가까이 높고 IPC도 1 미만.
+
+### 7. ftrace 실습
+- `available_tracers`에 `nop`만 존재 — Tegra 커널이 `function`/`function_graph` tracer를 컴파일에서 제외함 (벤더 커널 트레이싱 기능 제약, perf 이슈와 같은 맥락)
+- 대안: `available_events`(1,877개) 중 `raw_syscalls:sys_enter/exit`, `sched:sched_switch` 이벤트 트레이싱으로 진행
+- `fib(42)` 실행 중 syscall은 실행 초반(런타임 초기화) 0.42ms 구간에만 집중되고, 이후 연산 구간(2.5초)은 완전히 조용함 — 순수 유저모드 CPU 바운드 워크로드임을 커널 레벨에서 확인
+- **중요 발견**: `perf stat`에서는 `context-switches:u 0`이었지만 ftrace에는 `sched_switch`(hot ↔ irq/189-aerdrv, hot ↔ kworker/0:2)가 다수 기록됨
+  - 모순 아님: `perf stat`의 `:u` suffix는 user-space 이벤트만 카운트하므로 커널 인터럽트에 의한 선점은애초에 집계 대상이 아니었음
+  - ftrace는 커널 레벨 전체를 잡아내므로 PCIe AER 인터럽트(`irq/189-aerdrv`)가 주기적으로 프로세스를 선점하는 게 드러남
+  - 교훈: 도구별로 "무엇을 세는지(scope)"가 다르면 겉보기 모순이 발생할 수 있다는 실제 사례
