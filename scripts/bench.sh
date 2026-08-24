@@ -43,10 +43,14 @@ make -C "$SRC_DIR" all || exit 1
 echo
 
 echo "== environment =="
-echo "kernel : $(uname -r)"
-echo "cores  : $(nproc)"
-echo "perf   : $PERF ($("$PERF" --version))"
-echo "runs   : $RUNS"
+echo "kernel   : $(uname -r)"
+echo "cores    : $(nproc)"
+echo "perf     : $PERF ($("$PERF" --version))"
+echo "runs     : $RUNS"
+echo "governor : $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo n/a)"
+echo "nvpmodel : $(nvpmodel -q 2>/dev/null | tr '\n' ' ' || echo n/a)"
+echo "/tmp fs  : $(findmnt -no FSTYPE --target /tmp 2>/dev/null || echo unknown)"
+echo "protected_regular : $(sysctl -n fs.protected_regular 2>/dev/null || echo n/a)"
 echo
 
 # ---------------------------------------------------------------------------
@@ -95,5 +99,15 @@ for w in $WORKLOADS; do
   sudo "$PERF" stat -r "$RUNS" -- "$SRC_DIR/$w" 2>&1 >/dev/null | sed 's/^/  /'
   echo
 done
+
+echo "== cleanup =="
+# io_bound writes ~128MB per run. Its path is per-uid, so both the user-mode
+# runs (pass 1) and the root runs (pass 2) leave a file behind.
+for f in /tmp/io_bound_test.*.bin; do
+  [ -e "$f" ] || continue
+  echo "  removing $f ($(du -h "$f" | cut -f1), owner $(stat -c %U "$f"))"
+  rm -f "$f" 2>/dev/null || sudo rm -f "$f"
+done
+echo
 
 echo "done. paste the whole output into docs/반복측정_결과.md"
