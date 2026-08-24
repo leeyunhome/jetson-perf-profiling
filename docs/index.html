@@ -74,6 +74,24 @@ $PERF stat -- ls /</pre>
   집중돼 있어 핫스팟이 명확한 교과서적 사례.
 </p>
 
+
+<h2>4. perf stat 비교: I/O 짧은 프로세스 vs 연산 집중형 워크로드</h2>
+<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; width:100%;">
+<tr><th></th><th><code>ls /</code></th><th><code>fib(42)</code></th></tr>
+<tr><td>task-clock</td><td>1.53 msec</td><td>2,582.44 msec</td></tr>
+<tr><td>cycles</td><td>1,612,215</td><td>3,856,861,365</td></tr>
+<tr><td>instructions</td><td>1,468,134</td><td>13,004,930,685</td></tr>
+<tr><td><b>IPC</b></td><td>0.91</td><td><b>3.37</b></td></tr>
+<tr><td>branches</td><td>304,389</td><td>3,034,481,557</td></tr>
+<tr><td><b>branch-misses</b></td><td>15,552 (5.11%)</td><td><b>220,963 (0.01%)</b></td></tr>
+</table>
+<p>
+  <code>fib</code>처럼 분기 패턴이 규칙적인 연산 집중형 루프는 분기 예측기가 거의 완벽하게 학습되어
+  미스율이 0.01% 수준까지 떨어지고, IPC도 3.37까지 올라간다 (ARM 슈퍼스칼라 파이프라인이 거의 스톨 없이 가동).
+  반면 <code>ls</code>는 초단명 프로세스라 동적 링킹·파일시스템 조회의 불규칙한 분기와 예측기 워밍업 부족으로
+  미스율이 500배 가까이 높고 IPC도 1 미만이다.
+</p>
+
 <h2>다음 단계</h2>
 <p>ftrace(function_graph tracer)로 동일 워크로드를 이벤트 기반으로 추적해 perf(샘플링 기반)와의 차이를 비교할 예정.</p>
 
