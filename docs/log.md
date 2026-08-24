@@ -30,3 +30,8 @@
 - `FlameGraph`(Brendan Gregg) 툴체인으로 `flame_fib42.svg` 생성
   - `perf script` → `stackcollapse-perf.pl` → `flamegraph.pl`
   - 외부 툴(`tools/FlameGraph/`)은 `.gitignore` 처리, 결과 SVG만 커밋
+
+### 5. Flame Graph 결과 해석
+- 모양: `main`/`hot` 받침대 위로 `fib` 박스가 약 24층 쌓인 "뾰족탑(stalagmite)" 형태
+- 위로 갈수록 박스 폭이 점점 좁아짐 (100% → 1.52%) — `fib(n-1)+fib(n-2)` 재귀에서 좌측 가지가 더 깊이 파고들고 우측 가지가 상대적으로 얕게 끝나는 비대칭 재귀 구조가 폭 변화로 시각화됨
+- x≈213 위치에 `[[kernel.kallsyms]]`가 여러 깊이(y=37~245)에 0.01%씩 반복 등장 — 특정 재귀 경로가 커널 트랩(타이머 인터럽트 추정)에 반복적으로 인터럽트된 흔적
