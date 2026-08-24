@@ -146,7 +146,8 @@ nop</pre>
 </table>
 
 <h2>다음 단계</h2>
-<p>ftrace(function_graph tracer)로 동일 워크로드를 이벤트 기반으로 추적해 perf(샘플링 기반)와의 차이를 비교할 예정.</p>
+<p>지금까지 세 워크로드(순간형/연산형/I·O형)는 전부 단일 스레드라 <code>cpu-migrations: 0</code>이 계속 반복됐다.
+멀티스레드 워크로드로 실제 코어 간 마이그레이션과 스케줄러의 진짜 컨텍스트 스위치를 관찰할 예정.</p>
 
 <footer>
   전체 진행 로그: <a href="log.md">docs/log.md</a> ·
