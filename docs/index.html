@@ -92,6 +92,35 @@ $PERF stat -- ls /</pre>
   미스율이 500배 가까이 높고 IPC도 1 미만이다.
 </p>
 
+
+<h2>5. ftrace: 벤더 커널 제약과 perf/ftrace scope 차이</h2>
+<p>
+  <code>available_tracers</code>를 확인하니 <code>nop</code>만 존재했다 — Tegra 커스텀 커널이
+  <code>function</code>/<code>function_graph</code> tracer를 컴파일에서 아예 제외한 것이다.
+  대신 정적 tracepoint 기반 이벤트(1,877개 중 <code>raw_syscalls:sys_enter/exit</code>,
+  <code>sched:sched_switch</code>)는 살아있어 이걸로 실습을 이어갔다.
+</p>
+<pre>$ sudo cat /sys/kernel/debug/tracing/available_tracers
+nop</pre>
+<p>
+  <code>fib(42)</code> 실행 중 syscall은 시작 직후 0.42ms 구간(런타임 초기화: mprotect, munmap,
+  rt_sigaction 등)에만 몰려있고, 이후 2.5초의 연산 구간은 완전히 조용했다 — 순수 유저모드
+  CPU 바운드 워크로드임을 커널 레벨에서 재확인.
+</p>
+<h3>예상 밖의 발견: perf stat과 ftrace가 다른 그림을 보여준 이유</h3>
+<p>
+  <code>perf stat</code>에서는 <code>context-switches:u 0</code>이었는데, ftrace 로그에는
+  <code>hot</code> 프로세스가 <code>irq/189-aerdrv</code>, <code>kworker/0:2</code>로 여러 차례
+  <code>sched_switch</code>되는 게 찍혀 있었다. 모순이 아니라, <code>perf stat</code> 결과의
+  <code>:u</code> 접미사가 <b>user-space 이벤트만 카운트</b>한다는 뜻이라, 커널 인터럽트(PCIe AER)에
+  의한 선점은 애초에 집계 대상이 아니었던 것이다. ftrace는 커널 레벨을 전부 잡아내므로 이 선점이
+  그대로 드러났다.
+</p>
+<p>
+  <b>교훈</b>: 도구마다 "무엇을 세는지(scope)"가 다르면 겉보기 모순처럼 보이는 결과가 나올 수 있다.
+  perf와 ftrace를 같이 써야 이런 걸 정확히 해석할 수 있다는 걸 직접 경험한 사례.
+</p>
+
 <h2>다음 단계</h2>
 <p>ftrace(function_graph tracer)로 동일 워크로드를 이벤트 기반으로 추적해 perf(샘플링 기반)와의 차이를 비교할 예정.</p>
 
