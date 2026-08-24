@@ -23,3 +23,10 @@
 - `perf stat -- ls /` 결과: **하드웨어 PMU 이벤트(cycles, instructions, branches, branch-misses)가 전부 정상 수집됨**
   - VM(VirtualBox)에서는 PMU 가상화 미지원으로 소프트웨어 이벤트만 됐던 것과 대조적 — 실물 ARM 하드웨어의 이점을 확인
 - alias 등록: `alias perf=/usr/lib/linux-tools/6.8.0-138-generic/perf`
+
+### 4. CPU 부하 예제 + perf record + Flame Graph
+- `src/hot.c`: 재귀 `fib(42)` (`-O0` 컴파일로 인라이닝 방지), 실행 시간 약 2.5초
+- `sudo perf record -g -- src/hot` → 10,358 샘플 수집, call graph에서 `fib` 재귀 스택 확인
+- `FlameGraph`(Brendan Gregg) 툴체인으로 `flame_fib42.svg` 생성
+  - `perf script` → `stackcollapse-perf.pl` → `flamegraph.pl`
+  - 외부 툴(`tools/FlameGraph/`)은 `.gitignore` 처리, 결과 SVG만 커밋
