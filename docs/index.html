@@ -126,9 +126,16 @@ nop</pre>
 <p>
   <code>write()</code>를 200만 번 반복하는 <code>io_bound.c</code>를 추가로 만들어 비교했다.
   <code>time</code> 결과는 <code>user 0.148s / sys 1.907s</code>로 <code>fib</code>(전부 user)와
-  정반대였다. 흥미롭게도 같은 파일에 대해 <code>sudo perf stat</code>으로 재측정하니 실행시간이
-  0.686초로 단축됐는데, 캐시 워밍업 효과로 추정된다 — <b>벤치마크는 한 번이 아니라 여러 번 재서
-  검증해야 한다</b>는 실전 교훈이었다.
+  정반대였다.
+</p>
+<p style="border-left:4px solid #d33; padding-left:12px; background:#fff8f8;">
+  <b>⚠️ 정정</b> — 이 섹션에는 원래 "<code>sudo perf stat</code>으로 재측정하니 0.686초로 단축됐고,
+  캐시 워밍업 효과로 추정된다"고 적혀 있었다. <b>이후 5회 반복 측정으로 이 결론이 반증됐다.</b>
+  동일 조건 재측정값은 <code>2.0615 ± 0.0149s</code>로 0.686초와 3배 차이가 난다. 실제 원인은 캐시가
+  아니라 <b>에러 체크 누락으로 인한 무효 측정</b>이었다 — <code>open()</code>이 EACCES로 실패했는데
+  반환값을 검사하지 않아, <code>write(-1, ...)</code>를 200만 번 호출해 전부 EBADF로 즉시 실패하는
+  시간을 측정한 것이다 (루프당 677 instruction / 343ns vs 정상 2,956 instruction / 1,028ns).
+  전체 분석은 <a href="https://github.com/leeyunhome/jetson-perf-profiling/blob/main/docs/반복측정_결과.md">반복측정 결과</a> 참고.
 </p>
 <p>
   ftrace로는 또 다른 문제를 발견했다: <code>write</code>(syscall NR 64)가 200만 번 호출됐지만
@@ -138,24 +145,31 @@ nop</pre>
 </p>
 <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; width:100%;">
 <tr><th></th><th><code>ls /</code></th><th><code>fib(42)</code></th><th><code>io_bound</code></th></tr>
-<tr><td>실행시간</td><td>1.53ms</td><td>2.58s</td><td>2.06s</td></tr>
+<tr><td>실행시간</td><td>1.53ms</td><td>2.578s ±0.5%</td><td>2.053s ±1.1%</td></tr>
 <tr><td>user/sys</td><td>거의 user</td><td>거의 전부 user</td><td>대부분 sys</td></tr>
-<tr><td>IPC</td><td>0.91</td><td>3.37</td><td>1.34 (커널 포함)</td></tr>
-<tr><td>branch-miss</td><td>5.11%</td><td>0.01%</td><td>0.00% (커널 포함)</td></tr>
+<tr><td>IPC</td><td>0.91</td><td>3.37</td><td>1.91 (커널 포함)</td></tr>
+<tr><td>branch-miss</td><td>5.11%</td><td>0.01%</td><td>0.02% (커널 포함)</td></tr>
 <tr><td>ftrace 특징</td><td>전체 캡처됨</td><td>초반만, 이후 조용</td><td>버퍼 오버플로, 끝부분만 남음</td></tr>
 </table>
 
 
-<h2>7. 네 번째 워크로드: 멀티스레드 — 진짜 컨텍스트 스위치/마이그레이션</h2>
+<h2>7. 네 번째 워크로드: 멀티스레드</h2>
 <p>
   6코어 Jetson에서 스레드 4개가 각각 <code>fib(38)</code>을 동시에 계산하도록 만들었다.
-  <code>real 0.386s</code> / <code>user 1.520s</code> → 병렬 가속 약 3.94배로 이상적인 4배에 근접했다.
-</p>
-<p>
-  <code>sudo perf stat</code> 결과 <b>이번 실습 전체에서 처음으로</b> <code>context-switches: 45</code>,
-  <code>cpu-migrations: 2</code>가 0이 아니게 나왔다 (<code>3.935 CPUs utilized</code>로 실제 병렬 실행 확인).
-  <code>IPC 3.37</code>, 분기미스 0.01%는 단일 스레드 <code>fib(42)</code>와 거의 동일 — 병렬화가 코어별
+  5회 반복 측정 결과 <code>0.39209 ± 0.00509s</code>, <code>CPUs utilized 3.905</code> —
+  병렬 가속 약 3.9배로 이상적인 4배에 근접했다.
+  <code>IPC 3.36</code>, 분기미스 0.01%는 단일 스레드 <code>fib(42)</code>와 거의 동일 — 병렬화가 코어별
   실행 효율은 그대로 유지하면서 처리량만 늘렸다는 근거다.
+</p>
+<p style="border-left:4px solid #d33; padding-left:12px; background:#fff8f8;">
+  <b>⚠️ 정정</b> — 이 섹션에는 원래 "<b>이번 실습 전체에서 처음으로</b> context-switches / cpu-migrations가
+  0이 아니게 나왔다"고 적혀 있었다. <b>이 역시 반복 측정으로 반증됐다.</b> 단일 스레드 워크로드가 0으로
+  나온 것은 <code>sudo</code> 없이 측정해 <code>:u</code>(user-mode) 스코프였기 때문이고, 워크로드 특성이
+  아니라 <b>측정 조건을 워크로드 간에 통일하지 않은 실수</b>였다. <code>sudo</code>로 통일해 재측정하면
+  단일 스레드 <code>hot</code>도 context-switches 22 / cpu-migrations 2가 나온다.
+  게다가 이 두 지표는 상대편차가 각각 ±10~37%, ±37~60%로 매우 불안정해서 <b>단발 측정값으로는 어떤
+  주장도 할 수 없다</b>. 멀티스레드의 유효한 구별점은 <code>CPUs utilized 3.905</code>(상대편차 0.47%)
+  하나뿐이다. <a href="https://github.com/leeyunhome/jetson-perf-profiling/blob/main/docs/반복측정_결과.md">반복측정 결과</a> 참고.
 </p>
 <p>
   ftrace <code>sched_migrate_task</code>로 실제 마이그레이션 3건을 확인했다(예: <code>orig_cpu=0 → dest_cpu=1</code>).
@@ -166,6 +180,28 @@ nop</pre>
   스위칭되는 것도 관찰됐다.
 </p>
 
+<h2>8. 반복 측정으로 자기 결론 검증하기</h2>
+<p>
+  위 섹션들은 대부분 <b>1회 측정</b>에 기반해 작성됐다. 마지막으로 세 워크로드를 각각 5회씩 다시 재서
+  그 결론들이 버티는지 확인했다. 결과적으로 <b>두 개가 반증됐다</b> (위의 정정 박스 2개).
+</p>
+<p>
+  반복 측정이 밝혀낸 또 하나는 <b>지표마다 신뢰도가 완전히 다르다</b>는 점이다. 같은 5회 측정 안에서
+  상대표준편차가 0.00%부터 60%까지 벌어진다:
+</p>
+<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; width:100%;">
+<tr><th>지표</th><th>상대편차</th><th>단발 측정값 인용 가능?</th></tr>
+<tr><td>instructions, branches</td><td>±0.00 ~ 0.29%</td><td>가능 (결정론적)</td></tr>
+<tr><td>cycles, task-clock, elapsed</td><td>±0.02 ~ 0.84%</td><td>가능</td></tr>
+<tr><td>branch-misses</td><td>±1.79 ~ 3.97%</td><td>주의</td></tr>
+<tr><td><b>context-switches</b></td><td><b>±10.6 ~ 36.7%</b></td><td><b>불가</b></td></tr>
+<tr><td><b>cpu-migrations</b></td><td><b>±36.7 ~ 60.0%</b></td><td><b>불가</b></td></tr>
+</table>
+<p>
+  즉 IPC나 instruction 수는 한 번 재고 인용해도 되지만, context-switch·migration 횟수는 단발
+  측정값으로 어떤 주장도 할 수 없다. 이 저장소의 초기 결론이 정확히 그 실수를 했다.
+</p>
+
 <h2>정리</h2>
 <p>
   네 가지 워크로드(순간형 <code>ls</code>, 연산 지속형 <code>fib</code>, I/O 지속형 <code>io_bound</code>,
@@ -173,10 +209,17 @@ nop</pre>
   벤더 커널 제약, 도구 간 scope 차이, 트레이스 버퍼 오버플로, 노이즈 필터링 문제까지 실전에서 부딪히는
   이슈들을 직접 재현하고 해결했다.
 </p>
-
+<p>
+  다만 이 실습에서 가장 값어치 있었던 건 개별 발견들이 아니라 <b>자기 결론이 반증되는 과정</b>이었다.
+  반환값 검사를 빠뜨린 벤치마크는 크래시하지 않고 <b>그럴듯한 거짓 숫자</b>를 내놨고, 그 숫자가
+  "캐시 워밍업"이라는 잘못된 인사이트로 문서에 기록됐다. 반복 측정은 정밀도를 높이는 작업이 아니라
+  <b>틀린 결론을 걸러내는 장치</b>였다.
+</p>
 
 <footer>
-  전체 진행 로그: <a href="log.md">docs/log.md</a> ·
+  전체 진행 로그: <a href="https://github.com/leeyunhome/jetson-perf-profiling/blob/main/docs/log.md">docs/log.md</a> ·
+  반복 측정 결과: <a href="https://github.com/leeyunhome/jetson-perf-profiling/blob/main/docs/반복측정_결과.md">docs/반복측정_결과.md</a> ·
+  시행착오 기록: <a href="https://github.com/leeyunhome/jetson-perf-profiling/blob/main/docs/시행착오_기록.md">docs/시행착오_기록.md</a> ·
   소스: <a href="https://github.com/leeyunhome/jetson-perf-profiling">GitHub repo</a>
 </footer>
 </body>
