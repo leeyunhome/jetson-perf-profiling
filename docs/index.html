@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Jetson Orin 성능 프로파일링 — perf & Flame Graph</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; line-height: 1.7; color: #222; }
+  h1 { font-size: 1.8em; }
+  h2 { margin-top: 2em; border-bottom: 2px solid #eee; padding-bottom: 0.3em; }
+  code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }
+  pre { background: #f4f4f4; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  .badge { display: inline-block; background: #eee; padding: 3px 10px; border-radius: 12px; font-size: 0.85em; margin-right: 6px; }
+  object.flame { width: 100%; border: 1px solid #ddd; border-radius: 6px; }
+  footer { margin-top: 3em; color: #888; font-size: 0.9em; }
+</style>
+</head>
+<body>
+<h1>Jetson Orin에서 perf로 실물 ARM 하드웨어 프로파일링하기</h1>
+<p>
+  <span class="badge">ARM Cortex-A78AE (Jetson Orin)</span>
+  <span class="badge">L4T 6.8.12-1021-tegra</span>
+  <span class="badge">perf</span>
+  <span class="badge">Flame Graph</span>
+</p>
+
+<h2>배경</h2>
+<p>
+  VirtualBox 가상머신에서는 <code>perf stat</code>을 실행해도 소프트웨어 이벤트(task-clock, page-faults)만
+  수집되고 하드웨어 PMU 이벤트(cycles, instructions, branches)는 <code>&lt;not supported&gt;</code>로 나온다.
+  가상화 계층이 게스트에 PMU를 노출하지 않기 때문이다. 이 제약을 확인하기 위해 실물 ARM 하드웨어인
+  Jetson Orin에서 동일한 실험을 재현했다.
+</p>
+
+<h2>1. 벤더 커널에서 perf 설치하기</h2>
+<p>
+  Jetson의 커널은 NVIDIA가 커스텀 빌드한 <code>6.8.12-1021-tegra</code>라, Ubuntu 표준 저장소에는
+  이 정확한 버전에 대응하는 <code>linux-tools-6.8.12-1021-tegra</code> 패키지가 존재하지 않는다.
+</p>
+<pre>$ perf --version
+WARNING: perf not found for kernel 6.8.12-1021
+  You may need to install the following packages for this specific kernel:
+    linux-tools-6.8.12-1021-tegra
+    linux-cloud-tools-6.8.12-1021-tegra</pre>
+<p>
+  우회책: Ubuntu 표준 <code>linux-tools-generic</code> 계열(<code>6.8.0-138-generic</code>)에 포함된
+  perf 바이너리를 커널 버전 체크 wrapper 없이 직접 실행. perf의 이벤트 파싱 로직은 커널 ABI에
+  크게 의존하지 않아 정상 동작을 확인했다.
+</p>
+<pre>PERF=/usr/lib/linux-tools/6.8.0-138-generic/perf
+$PERF stat -- ls /</pre>
+
+<h2>2. 하드웨어 PMU 이벤트 확인</h2>
+<pre> Performance counter stats for 'ls /':
+      1.53 msec task-clock
+      1,612,215      cycles
+      1,468,134      instructions   #  0.91 insn per cycle
+        304,389      branches
+         15,552      branch-misses  #  5.11% of all branches</pre>
+<p>
+  VM에서는 못 봤던 <code>cycles</code>, <code>instructions</code>, <code>branches</code>,
+  <code>branch-misses</code>가 전부 정상 수집됐다. 실물 하드웨어의 이점을 직접 확인한 부분.
+</p>
+
+<h2>3. CPU 부하 예제 + Flame Graph</h2>
+<p>
+  재귀 <code>fib(42)</code>를 <code>-O0</code>으로 컴파일(인라이닝 방지)해 약 2.5초짜리 CPU 부하를 만들고,
+  <code>perf record -g</code>로 콜스택을 샘플링(10,358 샘플)한 뒤 Brendan Gregg의
+  <a href="https://github.com/brendangregg/FlameGraph" target="_blank">FlameGraph</a> 툴체인으로 시각화했다.
+</p>
+<object class="flame" data="flame_fib42.svg" type="image/svg+xml"></object>
+<p>
+  <code>fib(n-1)+fib(n-2)</code> 재귀 구조가 위로 갈수록 폭이 좁아지는 "뾰족탑" 모양으로 그대로 드러난다
+  (왼쪽 가지가 더 깊이 파고들고 오른쪽 가지는 상대적으로 얕게 끝남). 폭 100%가 거의 전부 <code>fib</code>에
+  집중돼 있어 핫스팟이 명확한 교과서적 사례.
+</p>
+
+<h2>다음 단계</h2>
+<p>ftrace(function_graph tracer)로 동일 워크로드를 이벤트 기반으로 추적해 perf(샘플링 기반)와의 차이를 비교할 예정.</p>
+
+<footer>
+  전체 진행 로그: <a href="log.md">docs/log.md</a> ·
+  소스: <a href="https://github.com/leeyunhome/jetson-perf-profiling">GitHub repo</a>
+</footer>
+</body>
+</html>
