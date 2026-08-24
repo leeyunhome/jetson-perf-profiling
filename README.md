@@ -15,7 +15,7 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 성능 프로�
 | [`docs/시행착오_기록.md`](docs/시행착오_기록.md) | 진행 중 실제로 막혔던 문제와 해결 과정 |
 | [`docs/쉽게_설명한_성능분석_실습.md`](docs/쉽게_설명한_성능분석_실습.md) | 전문용어 없이 비유로 풀어쓴 설명 |
 | [`src/`](src/) | 실습에 쓴 예제 프로그램 3종 (hot.c=연산 지속형 fib, io_bound.c=I/O 지속형, multithread.c=병렬) |
-| [`flame_fib42.svg`](flame_fib42.svg) | perf record + FlameGraph로 생성한 화염 그래프 |
+| [`docs/flame_fib42.svg`](docs/flame_fib42.svg) | perf record + FlameGraph로 생성한 화염 그래프 |
 
 ## 환경
 
