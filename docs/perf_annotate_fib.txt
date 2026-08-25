@@ -1,0 +1,36 @@
+ Percent |	Source code & Disassembly of hot for cycles:P (10361 samples, percent: local period)
+----------------------------------------------------------------------------------------------------
+         :
+         :
+         :
+         : 3   Disassembly of section .text:
+         :
+         : 5   0000000000000758 <fib>:
+         :
+         : 7   #include <stdio.h>
+         :
+         : 9   #define FIB_N 42
+         :
+         : 11  long fib(int n) {
+    2.51 :   758:    stp     x29, x30, [sp, #-48]!
+    1.02 :   75c:    mov     x29, sp
+    5.08 :   760:    str     x19, [sp, #16]
+    2.98 :   764:    str     w0, [sp, #44]
+         : 16  return n < 2 ? n : fib(n - 1) + fib(n - 2);
+    2.80 :   768:    ldr     w0, [sp, #44]
+   40.11 :   76c:    cmp     w0, #0x1
+    0.00 :   770:    b.gt    77c <fib+0x24>
+    6.10 :   774:    ldrsw   x0, [sp, #44]
+    1.92 :   778:    b       79c <fib+0x44>
+    8.88 :   77c:    ldr     w0, [sp, #44]
+    1.81 :   780:    sub     w0, w0, #0x1
+    1.41 :   784:    bl      758 <fib>
+    3.62 :   788:    mov     x19, x0
+    1.43 :   78c:    ldr     w0, [sp, #44]
+    0.33 :   790:    sub     w0, w0, #0x2
+    1.47 :   794:    bl      758 <fib>
+    4.16 :   798:    add     x0, x19, x0
+         : 30  }
+    2.72 :   79c:    ldr     x19, [sp, #16]
+   10.48 :   7a0:    ldp     x29, x30, [sp], #48
+    1.17 :   7a4:    ret
