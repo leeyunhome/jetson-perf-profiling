@@ -33,6 +33,7 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 CPU 프로파�
 | [`src/`](src/) | 예제 프로그램 3종 + Makefile (`hot.c`=연산 지속형, `io_bound.c`=I/O 지속형, `multithread.c`=병렬) |
 | [`scripts/bench.sh`](scripts/bench.sh) | 반복 측정 스크립트 (위 반복측정 결과를 생성) |
 | [`docs/flame_fib42.svg`](docs/flame_fib42.svg) | perf record + FlameGraph로 생성한 화염 그래프 |
+| [`docs/perf_annotate_fib.txt`](docs/perf_annotate_fib.txt) | `perf annotate`로 뽑은 `fib` 소스라인·어셈블리 단위 분석 원본 |
 
 ## 측정 환경
 
@@ -68,7 +69,7 @@ export PERF=/usr/lib/linux-tools/6.8.0-138-generic/perf
 | 값 | 위치 | 비고 |
 |---|---|---|
 | `/usr/lib/linux-tools/6.8.0-138-generic/perf` | `scripts/bench.sh`의 `PERF` 기본값 | `PERF=... bash scripts/bench.sh`로 덮어쓸 수 있음 |
-| `/tmp/io_bound_test.bin` | `src/io_bound.c`의 `OUT_PATH` | I/O 워크로드의 출력 파일. 실행마다 덮어쓰며 약 128MB 사용 |
+| `/tmp/io_bound_test.<uid>.bin` | `src/io_bound.c`의 기본 출력 경로 | uid별로 분리됨 (같은 파일을 유저 권한과 `sudo`로 번갈아 열면 `fs.protected_regular`에 막힘 — [`docs/시행착오_기록.md`](docs/시행착오_기록.md) 8번 참고). `IO_BOUND_OUT` 환경변수로 덮어쓸 수 있음. 실행마다 새로 만들며 약 128MB 사용 |
 | `/sys/kernel/debug/tracing` | ftrace 실습 전반 | tracefs 마운트 위치. 읽기에도 `sudo` 필요 |
 
 ## 재현 방법
@@ -100,3 +101,4 @@ bash scripts/bench.sh 5
 4. 벤더 커스텀 커널(Tegra)에서는 `perf`/`ftrace`의 표준 기능(대응 패키지, `function_graph` tracer)이 빠져 있을 수 있고, 우회책이 필요함
 5. **반복 측정이 위 실습의 결론 두 개를 반증했다** — 그중 하나는 "에러 체크를 빠뜨린 벤치마크가 크래시 대신 그럴듯한 거짓 숫자를 내놓고, 그게 잘못된 인사이트로 문서에 기록된" 사례였다 ([`docs/반복측정_결과.md`](docs/반복측정_결과.md))
 6. 지표마다 신뢰도가 다르다 — instructions/branches는 상대편차 ±0.00%로 1회 측정도 인용 가능하지만, `cpu-migrations`는 ±37~60%로 단발 측정값으로는 어떤 주장도 할 수 없다
+7. `perf annotate`는 재귀 호출처럼 같은 코드를 반복 실행하는 경우 "어느 호출 경로가 더 뜨거운가"를 답하지 못한다 — 그건 Flame Graph(호출 구조)의 역할이고, annotate는 명령어 단위 핫맵이라 둘은 서로 다른 질문에 답한다. 게다가 ARM PMU의 샘플 스큐 때문에 명령어별 퍼센트를 액면 그대로 믿으면 안 된다 ([`docs/log.md`](docs/log.md) 10절)
