@@ -11,6 +11,8 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 CPU 프로파�
 
 즉 이 저장소는 "프로파일링 도구를 실물 장비에서 직접 붙잡고 씨름한 기록"으로 읽어주시면 된다.
 
+**부록**: Jetson에서 못 써본 `function_graph` tracer를 표준 커널의 별도 x86 서버에서 재현해본 대조 실험이 [`docs/x86_function_graph_비교.md`](docs/x86_function_graph_비교.md)에 있다. 본 실험(Jetson)과는 별개 환경/별개 세션이며, 이 부록에 한해서만 x86 데이터가 등장한다.
+
 ## 실습 세션 정보
 
 - **일시**: 2026-08-24 하루, 17:27 ~ 22:44 KST (**약 5시간 20분**, 단일 세션)
@@ -34,6 +36,8 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 CPU 프로파�
 | [`scripts/bench.sh`](scripts/bench.sh) | 반복 측정 스크립트 (위 반복측정 결과를 생성) |
 | [`docs/flame_fib42.svg`](docs/flame_fib42.svg) | perf record + FlameGraph로 생성한 화염 그래프 |
 | [`docs/perf_annotate_fib.txt`](docs/perf_annotate_fib.txt) | `perf annotate`로 뽑은 `fib` 소스라인·어셈블리 단위 분석 원본 |
+| [`docs/x86_function_graph_비교.md`](docs/x86_function_graph_비교.md) | (부록) 별도 x86 서버에서 `function_graph` tracer를 재현한 대조 실험 |
+| [`docs/x86_function_graph_write.txt`](docs/x86_function_graph_write.txt) | 위 부록의 원본 트레이스 발췌 |
 
 ## 측정 환경
 
@@ -102,3 +106,4 @@ bash scripts/bench.sh 5
 5. **반복 측정이 위 실습의 결론 두 개를 반증했다** — 그중 하나는 "에러 체크를 빠뜨린 벤치마크가 크래시 대신 그럴듯한 거짓 숫자를 내놓고, 그게 잘못된 인사이트로 문서에 기록된" 사례였다 ([`docs/반복측정_결과.md`](docs/반복측정_결과.md))
 6. 지표마다 신뢰도가 다르다 — instructions/branches는 상대편차 ±0.00%로 1회 측정도 인용 가능하지만, `cpu-migrations`는 ±37~60%로 단발 측정값으로는 어떤 주장도 할 수 없다
 7. `perf annotate`는 재귀 호출처럼 같은 코드를 반복 실행하는 경우 "어느 호출 경로가 더 뜨거운가"를 답하지 못한다 — 그건 Flame Graph(호출 구조)의 역할이고, annotate는 명령어 단위 핫맵이라 둘은 서로 다른 질문에 답한다. 게다가 ARM PMU의 샘플 스큐 때문에 명령어별 퍼센트를 액면 그대로 믿으면 안 된다 ([`docs/log.md`](docs/log.md) 10절)
+8. (부록) `function_graph`는 유저스페이스 함수가 아니라 커널 함수만 추적한다 — Tegra에 있었어도 `fib()`는 못 봤을 것이다. 표준 커널(x86)에서 재현하니 `write()`가 AppArmor 검사·ext4 inode 락·dirty page 스로틀링을 거치는 실제 커널 함수 트리를 볼 수 있었고, pid 필터링 없는 노이즈 문제(원격 데스크톱 데몬·로그 데몬 등)도 완전히 다른 환경에서 독립적으로 재현됐다 ([`docs/x86_function_graph_비교.md`](docs/x86_function_graph_비교.md))
