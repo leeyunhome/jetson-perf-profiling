@@ -34,6 +34,7 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 CPU 프로파�
 | [`docs/쉽게_설명한_성능분석_실습.md`](docs/쉽게_설명한_성능분석_실습.md) | 전문용어 없이 비유로 풀어쓴 설명 |
 | [`src/`](src/) | 예제 프로그램 3종 + Makefile (`hot.c`=연산 지속형, `io_bound.c`=I/O 지속형, `multithread.c`=병렬) |
 | [`scripts/bench.sh`](scripts/bench.sh) | 반복 측정 스크립트 (위 반복측정 결과를 생성) |
+| [`notebooks/review.ipynb`](notebooks/review.ipynb) | 전체 세션을 처음부터 다시 실행하며 복습하는 노트북 (Jetson의 `mlops-lab` Jupyter 커널 기준) |
 | [`docs/flame_fib42.svg`](docs/flame_fib42.svg) | perf record + FlameGraph로 생성한 화염 그래프 |
 | [`docs/perf_annotate_fib.txt`](docs/perf_annotate_fib.txt) | `perf annotate`로 뽑은 `fib` 소스라인·어셈블리 단위 분석 원본 |
 | [`docs/x86_function_graph_비교.md`](docs/x86_function_graph_비교.md) | (부록) 별도 x86 서버에서 `function_graph` tracer를 재현한 대조 실험 |
