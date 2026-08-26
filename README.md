@@ -39,6 +39,7 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 CPU 프로파�
 | [`docs/perf_annotate_fib.txt`](docs/perf_annotate_fib.txt) | `perf annotate`로 뽑은 `fib` 소스라인·어셈블리 단위 분석 원본 |
 | [`docs/x86_function_graph_비교.md`](docs/x86_function_graph_비교.md) | (부록) 별도 x86 서버에서 `function_graph` tracer를 재현한 대조 실험 |
 | [`docs/x86_function_graph_write.txt`](docs/x86_function_graph_write.txt) | 위 부록의 원본 트레이스 발췌 |
+| [`docs/라즈베리파이_function_graph_비교.md`](docs/라즈베리파이_function_graph_비교.md) | (부록2) Raspberry Pi(ARM64, 표준 커널)에서 `function_graph`를 재현한 두 번째 대조 실험 |
 
 ## 측정 환경
 
