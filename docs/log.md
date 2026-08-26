@@ -84,6 +84,10 @@
 - ftrace `sched_migrate_task`로 실제 마이그레이션 이벤트 확인. pid 필터링 없이 시스템 전체를 추적하니 상당수(rcu_preempt, kworker, sshd, python, NetworkManager, containerd 등)가 우리 프로세스와 무관한 배경 활동이었고, 진짜 `multithread` 자신의 마이그레이션은 3건 (`perf stat`의 `cpu-migrations: 2`와 대략 일치, 서로 다른 실행이라 완전 동일하지는 않음)
   - 교훈: 타겟 pid로 필터링하지 않고 시스템 전체를 트레이싱하면 노이즈에 신호가 묻힌다.
 - 부가 관찰: CPU 부하가 오르자 `sugov:0`(schedutil 주파수 governor 커널 스레드)와 `multithread` 스레드가 매우 빈번하게 교차 스위칭됨 — 부하 증가에 따른 주파수 스케일링 개입이 스케줄러 레벨에서 관찰됨
+- **후속(2026-08-26)**: 위 관찰들은 "무엇이 일어났는지"까지만 적어둔 상태였다. 이후 같은 로그의 **플래그 열**을 판독해 메커니즘까지 규명함 → [`ftrace_로그판독_인터럽트컨텍스트.md`](ftrace_로그판독_인터럽트컨텍스트.md)
+  - `irq/189-aerdrv`가 선점한 이유: `next_prio=49` = **RT 우선순위 50인 threaded IRQ 핸들러**가 일반 우선순위(`prio=120`, nice 0) 프로세스를 즉시 선점한 것
+  - `sugov:0`의 `next_prio=-1`: RT 범위 밖 음수 = 더 높은 스케줄링 클래스(데드라인)
+  - `sched_migrate_task`가 `d.h*`(hardirq)와 `d.s*`(softirq) 양쪽에서 찍힌 것 = 인터럽트 처리를 2단계로 쪼개는 top half / bottom half 설계가 로그에 드러난 것
 
 ### 10. perf annotate — 소스라인 단위 분석의 한계와 함정
 - `fib`의 어셈블리를 명령어 단위로 확인: 전체 함수 본문이 하나의 주소(`0x758`)를 공유하므로, `fib(n-1)` 호출부(`bl` at 784, 1.41%)와 `fib(n-2)` 호출부(`bl` at 794, 1.47%)의 샘플 비율이 거의 동일하게 나옴.

@@ -31,6 +31,7 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 CPU 프로파�
 | [`docs/log.md`](docs/log.md) | 진행 순서대로 남긴 원본 작업 로그 |
 | [`docs/반복측정_결과.md`](docs/반복측정_결과.md) | 각 워크로드 5회 반복 측정 결과 (평균·표준편차·range) |
 | [`docs/시행착오_기록.md`](docs/시행착오_기록.md) | 진행 중 실제로 막혔던 문제와 해결 과정 |
+| [`docs/ftrace_로그판독_인터럽트컨텍스트.md`](docs/ftrace_로그판독_인터럽트컨텍스트.md) | 이미 캡처한 로그의 **플래그 열**을 판독해 인터럽트 컨텍스트·선점·threaded IRQ를 규명 (재측정 없이) |
 | [`docs/쉽게_설명한_성능분석_실습.md`](docs/쉽게_설명한_성능분석_실습.md) | 전문용어 없이 비유로 풀어쓴 설명 |
 | [`src/`](src/) | 예제 프로그램 3종 + Makefile (`hot.c`=연산 지속형, `io_bound.c`=I/O 지속형, `multithread.c`=병렬) |
 | [`scripts/bench.sh`](scripts/bench.sh) | 반복 측정 스크립트 (위 반복측정 결과를 생성) |
@@ -108,4 +109,5 @@ bash scripts/bench.sh 5
 5. **반복 측정이 위 실습의 결론 두 개를 반증했다** — 그중 하나는 "에러 체크를 빠뜨린 벤치마크가 크래시 대신 그럴듯한 거짓 숫자를 내놓고, 그게 잘못된 인사이트로 문서에 기록된" 사례였다 ([`docs/반복측정_결과.md`](docs/반복측정_결과.md))
 6. 지표마다 신뢰도가 다르다 — instructions/branches는 상대편차 ±0.00%로 1회 측정도 인용 가능하지만, `cpu-migrations`는 ±37~60%로 단발 측정값으로는 어떤 주장도 할 수 없다
 7. `perf annotate`는 재귀 호출처럼 같은 코드를 반복 실행하는 경우 "어느 호출 경로가 더 뜨거운가"를 답하지 못한다 — 그건 Flame Graph(호출 구조)의 역할이고, annotate는 명령어 단위 핫맵이라 둘은 서로 다른 질문에 답한다. 게다가 ARM PMU의 샘플 스큐 때문에 명령어별 퍼센트를 액면 그대로 믿으면 안 된다 ([`docs/log.md`](docs/log.md) 10절)
-8. (부록) `function_graph`는 유저스페이스 함수가 아니라 커널 함수만 추적한다 — Tegra에 있었어도 `fib()`는 못 봤을 것이다. 표준 커널(x86)에서 재현하니 `write()`가 AppArmor 검사·ext4 inode 락·dirty page 스로틀링을 거치는 실제 커널 함수 트리를 볼 수 있었고, pid 필터링 없는 노이즈 문제(원격 데스크톱 데몬·로그 데몬 등)도 완전히 다른 환경에서 독립적으로 재현됐다 ([`docs/x86_function_graph_비교.md`](docs/x86_function_graph_비교.md))
+8. **도구가 이미 출력한 정보를 못 읽어서 놓친 게 있었다** — ftrace 매 줄 앞의 5글자 플래그 열이 인터럽트 컨텍스트(hardirq/softirq)·선점 깊이·재스케줄 대기 상태를 그대로 알려주는데, 처음엔 그냥 지나쳤다. 재측정 없이 같은 로그를 다시 읽는 것만으로 `irq/189-aerdrv` 선점 원인(RT 우선순위 50 threaded IRQ)과 top half/bottom half 2단계 처리 증거를 찾아냈다 ([`docs/ftrace_로그판독_인터럽트컨텍스트.md`](docs/ftrace_로그판독_인터럽트컨텍스트.md))
+9. (부록) `function_graph`는 유저스페이스 함수가 아니라 커널 함수만 추적한다 — Tegra에 있었어도 `fib()`는 못 봤을 것이다. 표준 커널(x86)에서 재현하니 `write()`가 AppArmor 검사·ext4 inode 락·dirty page 스로틀링을 거치는 실제 커널 함수 트리를 볼 수 있었고, pid 필터링 없는 노이즈 문제(원격 데스크톱 데몬·로그 데몬 등)도 완전히 다른 환경에서 독립적으로 재현됐다 ([`docs/x86_function_graph_비교.md`](docs/x86_function_graph_비교.md))
