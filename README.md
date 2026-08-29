@@ -41,16 +41,9 @@ Jetson Orin(실물 ARM 하드웨어)에서 `perf`와 `ftrace`로 CPU 프로파�
 | [`docs/x86_function_graph_비교.md`](docs/x86_function_graph_비교.md) | (부록) 별도 x86 서버에서 `function_graph` tracer를 재현한 대조 실험 |
 | [`docs/x86_function_graph_write.txt`](docs/x86_function_graph_write.txt) | 위 부록의 원본 트레이스 발췌 |
 
-## 라즈베리파이 섹션
+## 관련 저장소
 
-Jetson·x86과는 별개로, 표준 커널을 쓰는 **Raspberry Pi 4B**에서 이어가는 실습. Jetson 벤더 커널 제약의 대조군이자, 직접 커널을 빌드/설치해 인터럽트 서브시스템(threaded IRQ, softirq)까지 파고드는 확장 트랙이다.
-
-| 문서 | 용도 |
-|---|---|
-| [`docs/라즈베리파이_function_graph_비교.md`](docs/라즈베리파이_function_graph_비교.md) | Raspberry Pi(ARM64, 표준 커널)에서 `function_graph`를 재현한 대조 실험 (Jetson 벤더 제약이 아키텍처가 같은 장비에서도 재현되는지 검증) |
-| `docs/라즈베리파이_커널빌드_및_인터럽트디버깅.md` | 🚧 진행 중 — 커널을 직접 빌드/설치해 디버그 심볼을 확보하고, threaded IRQ·softirq를 실측 검증 |
-
-**환경**: Raspberry Pi 4B Rev 1.2, 4코어/2GB RAM, `6.12.25+rpt-rpi-v8` (Raspberry Pi Foundation 표준 빌드), Debian(Raspbian) Bookworm.
+- [`rpi-kernel-lab`](https://github.com/leeyunhome/rpi-kernel-lab) — Raspberry Pi 4B(표준 커널)에서 커널을 직접 빌드하고 ftrace로 커널 내부를 추적하는 별도 실습. 이 저장소와 **독립적으로 진행**하며, 두 장비 비교(벤더 커스텀 커널 vs 표준 커널)는 추후 별도로 정리 예정.
 
 ## 측정 환경
 
